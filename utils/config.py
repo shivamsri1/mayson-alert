@@ -11,14 +11,14 @@ logger = logging.getLogger(__name__)
 
 def _get_bool(env_var: str, default: bool = True) -> bool:
     val = os.getenv(env_var)
-    if val is None:
+    if val is None or not str(val).strip():
         return default
     return str(val).strip().lower() in ("true", "1", "yes", "on")
 
 
 def _get_int(env_var: str, default: int = 993) -> int:
     val = os.getenv(env_var)
-    if val is None or not val.strip():
+    if val is None or not str(val).strip():
         return default
     try:
         return int(val.strip())
@@ -31,15 +31,16 @@ def _get_int(env_var: str, default: int = 993) -> int:
 class Config:
     """Application configuration and credentials retrieved from environment variables."""
 
-    MAYSON_BASE_URL: str = os.getenv("MAYSON_BASE_URL", "https://app.mayson.ai").rstrip("/")
+    MAYSON_BASE_URL: str = os.getenv("MAYSON_BASE_URL", "https://mayson.dev").rstrip("/")
     MAYSON_USERNAME: str = os.getenv("MAYSON_USERNAME", "")
     MAYSON_PASSWORD: str = os.getenv("MAYSON_PASSWORD", "")
 
-    MAIL_HOST: str = os.getenv("MAIL_HOST", "")
+    MAIL_HOST: str = os.getenv("MAIL_HOST", "imap.gmail.com")
     MAIL_PORT: int = _get_int("MAIL_PORT", 993)
     MAIL_USERNAME: str = os.getenv("MAIL_USERNAME", "")
     MAIL_PASSWORD: str = os.getenv("MAIL_PASSWORD", "")
-    MAIL_USE_SSL: bool = _get_bool("MAIL_USE_SSL", True)
+    MAIL_USE_SSL: bool = _get_bool("MAIL_USE_SSL", True) or (_get_int("MAIL_PORT", 993) == 993)
+
 
     OTP_EMAIL_SENDER: str = os.getenv("OTP_EMAIL_SENDER", "")
     OTP_EMAIL_SUBJECT: str = os.getenv("OTP_EMAIL_SUBJECT", "")

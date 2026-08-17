@@ -35,15 +35,16 @@ jobs:
           MAYSON_BASE_URL: ${{ secrets.MAYSON_BASE_URL }}
           MAYSON_USERNAME: ${{ secrets.MAYSON_USERNAME }}
           MAYSON_PASSWORD: ${{ secrets.MAYSON_PASSWORD }}
-          MAIL_HOST: ${{ secrets.MAIL_HOST }}
-          MAIL_PORT: ${{ secrets.MAIL_PORT }}
+          MAIL_HOST: ${{ secrets.MAIL_HOST || 'imap.gmail.com' }}
+          MAIL_PORT: ${{ secrets.MAIL_PORT || '993' }}
           MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-          MAIL_USE_SSL: ${{ secrets.MAIL_USE_SSL }}
+          MAIL_USE_SSL: ${{ secrets.MAIL_USE_SSL || 'true' }}
           OTP_EMAIL_SENDER: ${{ secrets.OTP_EMAIL_SENDER }}
           OTP_EMAIL_SUBJECT: ${{ secrets.OTP_EMAIL_SUBJECT }}
         run: |
           pytest --html=report.html --self-contained-html
+
 
       - name: Upload Failure Artifacts (Screenshots & Traces)
         if: failure()

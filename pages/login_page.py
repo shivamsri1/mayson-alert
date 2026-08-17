@@ -103,16 +103,52 @@ class LoginPage(BasePage):
     def request_otp(self):
         """Clicks the button to request OTP email."""
         logger.info("Clicking request OTP button...")
-        for selector in self.REQUEST_OTP_BUTTON_SELECTORS:
-            loc = self.page.locator(selector).first
-            if loc.is_visible() and loc.is_enabled():
-                loc.click()
-                logger.info(f"Clicked request OTP button matching: '{selector}'")
-                return
 
-        # Fallback click on any active submit button inside form
-        submit_loc = self.page.locator("form button, form input[type='submit']").first
-        submit_loc.click()
+        # 1. Dismiss referral modal overlay if visible
+        try:
+            overlay_loc = self.page.locator(".referral-modal_mayson-referral-overlay__sZZQO, .referral-modal_show__3SgQ5, [class*='referral-modal']").first
+            if overlay_loc.is_visible(timeout=3000.0):
+                logger.info("Dismissing referral modal overlay...")
+                close_btn = self.page.locator("[class*='close'], button:has-text('×'), button:has-text('Close'), .referral-modal_close").first
+                if close_btn.is_visible():
+                    close_btn.click()
+                else:
+                    self.page.keyboard.press("Escape")
+                self.page.wait_for_timeout(1000)
+        except Exception as e:
+            logger.info(f"No overlay to dismiss or dismiss check skipped: {e}")
+
+        # 2. Targeted Login Form button selectors (avoiding footer subscribe buttons)
+        TARGETED_BUTTON_SELECTORS = [
+            "form button[type='submit']",
+            "form button:has-text('Send')",
+            "form button:has-text('OTP')",
+            "form button:has-text('Continue')",
+            "form button:has-text('Log In')",
+            "form button:has-text('Get Code')",
+            "form button:has-text('Next')",
+            "button:has-text('Send Code')",
+            "button:has-text('Get Code')",
+            "button:has-text('Request OTP')",
+            "button:has-text('Send OTP')",
+            "[data-testid='send-otp-btn']",
+            "[data-testid='submit-btn']",
+        ]
+
+        for selector in TARGETED_BUTTON_SELECTORS:
+            try:
+                loc = self.page.locator(selector).first
+                if loc.is_visible(timeout=2000.0) and loc.is_enabled():
+                    loc.click(force=True)
+                    logger.info(f"Clicked request OTP button matching: '{selector}'")
+                    return
+            except Exception:
+                continue
+
+        # Fallback click inside form
+        form_submit = self.page.locator("form button, form input[type='submit']").first
+        form_submit.click(force=True)
+
 
     def enter_otp(self, otp_code: str):
         """
