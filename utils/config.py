@@ -9,6 +9,12 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+def _clean_str(val: str, default: str = "") -> str:
+    if not val:
+        return default
+    return str(val).strip().replace("\r", "").replace("\n", "")
+
+
 def _get_bool(env_var: str, default: bool = True) -> bool:
     val = os.getenv(env_var)
     if val is None or not str(val).strip():
@@ -21,7 +27,7 @@ def _get_int(env_var: str, default: int = 993) -> int:
     if val is None or not str(val).strip():
         return default
     try:
-        return int(val.strip())
+        return int(str(val).strip())
     except ValueError:
         logger.warning(f"Invalid integer for {env_var}: {val}. Using default {default}.")
         return default
@@ -31,19 +37,19 @@ def _get_int(env_var: str, default: int = 993) -> int:
 class Config:
     """Application configuration and credentials retrieved from environment variables."""
 
-    MAYSON_BASE_URL: str = os.getenv("MAYSON_BASE_URL", "https://mayson.dev").rstrip("/")
-    MAYSON_USERNAME: str = os.getenv("MAYSON_USERNAME", "")
-    MAYSON_PASSWORD: str = os.getenv("MAYSON_PASSWORD", "")
+    MAYSON_BASE_URL: str = _clean_str(os.getenv("MAYSON_BASE_URL"), "https://mayson.dev").rstrip("/")
+    MAYSON_USERNAME: str = _clean_str(os.getenv("MAYSON_USERNAME"), "")
+    MAYSON_PASSWORD: str = _clean_str(os.getenv("MAYSON_PASSWORD"), "")
 
-    MAIL_HOST: str = os.getenv("MAIL_HOST", "imap.gmail.com")
+    MAIL_HOST: str = _clean_str(os.getenv("MAIL_HOST"), "imap.gmail.com")
     MAIL_PORT: int = _get_int("MAIL_PORT", 993)
-    MAIL_USERNAME: str = os.getenv("MAIL_USERNAME", "")
-    MAIL_PASSWORD: str = os.getenv("MAIL_PASSWORD", "")
+    MAIL_USERNAME: str = _clean_str(os.getenv("MAIL_USERNAME"), "")
+    MAIL_PASSWORD: str = _clean_str(os.getenv("MAIL_PASSWORD"), "")
     MAIL_USE_SSL: bool = _get_bool("MAIL_USE_SSL", True) or (_get_int("MAIL_PORT", 993) == 993)
 
+    OTP_EMAIL_SENDER: str = _clean_str(os.getenv("OTP_EMAIL_SENDER"), "")
+    OTP_EMAIL_SUBJECT: str = _clean_str(os.getenv("OTP_EMAIL_SUBJECT"), "")
 
-    OTP_EMAIL_SENDER: str = os.getenv("OTP_EMAIL_SENDER", "")
-    OTP_EMAIL_SUBJECT: str = os.getenv("OTP_EMAIL_SUBJECT", "")
 
     @classmethod
     def validate(cls) -> "Config":

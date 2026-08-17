@@ -130,22 +130,15 @@ class EmailOTPFetcher:
                 mail = self._connect()
                 mail.select("INBOX")
 
-                # Build search criteria
-                search_criteria = ["UNSEEN"]
-                if self.config.OTP_EMAIL_SENDER:
-                    search_criteria.append(f'FROM "{self.config.OTP_EMAIL_SENDER}"')
-
-                search_query = " ".join(search_criteria) if search_criteria else "ALL"
-                status, messages = mail.search(None, search_query)
-
-                if status != "OK" or not messages[0]:
-                    # Fallback to search recent ALL if UNSEEN returns empty
-                    status, messages = mail.search(None, "ALL")
-
+                # Always retrieve ALL message IDs to ensure newest emails are inspected
+                status, messages = mail.search(None, "ALL")
                 msg_ids = messages[0].split() if (status == "OK" and messages[0]) else []
 
+                # Limit inspection to the last 15 newest emails for performance
+                recent_ids = msg_ids[-15:] if len(msg_ids) > 15 else msg_ids
+
                 # Iterate through messages from newest to oldest
-                for msg_id in reversed(msg_ids):
+                for msg_id in reversed(recent_ids):
                     status, msg_data = mail.fetch(msg_id, "(RFC822)")
                     if status != "OK":
                         continue
@@ -165,17 +158,18 @@ class EmailOTPFetcher:
                             if self.config.OTP_EMAIL_SENDER and self.config.OTP_EMAIL_SENDER.lower() not in sender.lower():
                                 continue
 
-                            # Check timestamp if provided
+                            # Check timestamp with 300s (5-minute) clock skew tolerance for CI runners
                             if sent_after_timestamp:
                                 date_hdr = msg.get("Date")
                                 if date_hdr:
                                     try:
                                         msg_date_tuple = email.utils.parsedate_to_datetime(date_hdr)
                                         msg_timestamp = msg_date_tuple.timestamp()
-                                        if msg_timestamp < (sent_after_timestamp - 30):  # 30s clock skew tolerance
+                                        if msg_timestamp < (sent_after_timestamp - 300):
                                             continue
                                     except Exception:
-                                        pass  # Ignore parse issues and proceed to check body
+                                        pass  # Proceed to check body if date header parse is uncertain
+
 
                             body = self._extract_body(msg)
                             otp_code = self._extract_otp_from_text(body)

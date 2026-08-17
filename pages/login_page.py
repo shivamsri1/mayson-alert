@@ -90,47 +90,49 @@ class LoginPage(BasePage):
         """Enters test user email into email field."""
         logger.info(f"Entering email into login form: {email}")
         for selector in self.EMAIL_INPUT_SELECTORS:
-            loc = self.page.locator(selector).first
-            if loc.is_visible():
-                loc.fill(email)
-                return
+            try:
+                loc = self.page.locator(selector).first
+                if loc.is_visible(timeout=3000.0):
+                    loc.fill(email)
+                    self._email_locator = loc
+                    logger.info(f"Filled email input field matching: '{selector}'")
+                    return
+            except Exception:
+                continue
 
         # Fallback to first text/email input on page
         fallback_loc = self.page.locator("input[type='email'], input[type='text']").first
         fallback_loc.wait_for(state="visible", timeout=10000.0)
         fallback_loc.fill(email)
+        self._email_locator = fallback_loc
 
     def request_otp(self):
-        """Clicks the button to request OTP email."""
-        logger.info("Clicking request OTP button...")
+        """Clicks the button to request OTP email or submits form."""
+        logger.info("Clicking request OTP button / submitting email form...")
 
-        # 1. Dismiss referral modal overlay if visible
-        try:
-            overlay_loc = self.page.locator(".referral-modal_mayson-referral-overlay__sZZQO, .referral-modal_show__3SgQ5, [class*='referral-modal']").first
-            if overlay_loc.is_visible(timeout=3000.0):
-                logger.info("Dismissing referral modal overlay...")
-                close_btn = self.page.locator("[class*='close'], button:has-text('×'), button:has-text('Close'), .referral-modal_close").first
-                if close_btn.is_visible():
-                    close_btn.click()
-                else:
-                    self.page.keyboard.press("Escape")
+        # 1. First, try pressing Enter on the filled email input field
+        if hasattr(self, "_email_locator") and self._email_locator:
+            try:
+                logger.info("Pressing 'Enter' key on email input field to trigger OTP request...")
+                self._email_locator.press("Enter")
                 self.page.wait_for_timeout(1000)
-        except Exception as e:
-            logger.info(f"No overlay to dismiss or dismiss check skipped: {e}")
+            except Exception as e:
+                logger.info(f"Pressing Enter on email field failed: {e}")
 
-        # 2. Targeted Login Form button selectors (avoiding footer subscribe buttons)
+        # 2. Targeted Login Form button selectors (specifically inside auth/login forms)
         TARGETED_BUTTON_SELECTORS = [
             "form button[type='submit']",
-            "form button:has-text('Send')",
-            "form button:has-text('OTP')",
-            "form button:has-text('Continue')",
-            "form button:has-text('Log In')",
-            "form button:has-text('Get Code')",
-            "form button:has-text('Next')",
+            "main button[type='submit']",
+            ".auth-card button",
+            ".login-card button",
             "button:has-text('Send Code')",
             "button:has-text('Get Code')",
-            "button:has-text('Request OTP')",
             "button:has-text('Send OTP')",
+            "button:has-text('Request OTP')",
+            "button:has-text('Continue')",
+            "button:has-text('Next')",
+            "button:has-text('Send')",
+            "button:has-text('Log In')",
             "[data-testid='send-otp-btn']",
             "[data-testid='submit-btn']",
         ]
@@ -146,8 +148,12 @@ class LoginPage(BasePage):
                 continue
 
         # Fallback click inside form
-        form_submit = self.page.locator("form button, form input[type='submit']").first
-        form_submit.click(force=True)
+        try:
+            form_submit = self.page.locator("form button, form input[type='submit']").first
+            form_submit.click(force=True)
+        except Exception:
+            self.page.keyboard.press("Enter")
+
 
 
     def enter_otp(self, otp_code: str):
