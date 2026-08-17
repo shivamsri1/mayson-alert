@@ -12,6 +12,8 @@ class LoginPage(BasePage):
 
     # Flexible primary & fallback locators for email input
     EMAIL_INPUT_SELECTORS = [
+        "input[name='email_id']",
+        "input[id='email_id']",
         "input[type='email']",
         "input[name='email']",
         "input[id='email']",
