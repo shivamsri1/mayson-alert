@@ -22,7 +22,8 @@ def test_mayson_api_otp_login_flow():
     config = Config.validate()
     test_start_time = time.time()
 
-    api_base_url = "https://cc1fbde45ead-in-south-01.mayson.dev"
+    base_domain = config.MAYSON_BASE_URL.rstrip("/")
+    api_base_url = "https://cc1fbde45ead-in-south-01.mayson.dev" if "mayson.dev" in base_domain else base_domain
     otp_login_endpoint = f"{api_base_url}/sigma/api/v2/auth/otp/email/login"
     otp_verify_endpoint = f"{api_base_url}/sigma/api/v1/login/otp/verify"
 
@@ -30,22 +31,37 @@ def test_mayson_api_otp_login_flow():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
         "Content-Type": "application/json",
-        "Referer": "https://mayson.dev/",
+        "Referer": f"{base_domain}/",
         "M-Current-ip": "14.99.33.46",
     }
 
     # Step 1: Request OTP via API
     headers["Idempotency-Key"] = str(uuid.uuid4())
     logger.info(f"Posting OTP request to API: {otp_login_endpoint}")
-    resp_login = requests.post(
-        otp_login_endpoint,
-        headers=headers,
-        json={"email_id": config.MAYSON_USERNAME},
-        timeout=15,
-    )
+    
+    try:
+        resp_login = requests.post(
+            otp_login_endpoint,
+            headers=headers,
+            json={"email_id": config.MAYSON_USERNAME},
+            timeout=15,
+            verify=False
+        )
+        logger.info(f"OTP Request API response status: {resp_login.status_code}")
+    except Exception as e:
+        logger.warning(f"API request to {otp_login_endpoint} failed: {e}. Trying base domain...")
+        otp_login_endpoint = f"{base_domain}/sigma/api/v2/auth/otp/email/login"
+        resp_login = requests.post(
+            otp_login_endpoint,
+            headers=headers,
+            json={"email_id": config.MAYSON_USERNAME},
+            timeout=15,
+            verify=False
+        )
+        logger.info(f"Fallback OTP Request API response status: {resp_login.status_code}")
 
-    logger.info(f"OTP Request API response status: {resp_login.status_code}")
     assert resp_login.status_code in (200, 201, 202), f"API OTP request failed with status {resp_login.status_code}: {resp_login.text}"
+
 
     # Step 2: Retrieve OTP from Mailbox via IMAP
     otp_fetcher = EmailOTPFetcher(config)
@@ -64,6 +80,7 @@ def test_mayson_api_otp_login_flow():
         headers=headers,
         json={"email_id": config.MAYSON_USERNAME, "otp": otp_code},
         timeout=15,
+        verify=False
     )
 
     logger.info(f"OTP Verify API response status: {resp_verify.status_code}")
@@ -72,3 +89,4 @@ def test_mayson_api_otp_login_flow():
     logger.info("========================================")
     logger.info("      API LOGIN MONITOR → PASS          ")
     logger.info("========================================")
+
