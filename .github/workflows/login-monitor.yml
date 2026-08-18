@@ -1,18 +1,21 @@
-name: Mayson Login OTP Synthetic Monitoring
+name: Mayson API Login Monitor
 
 on:
   schedule:
-    # Run every 10 minutes
+    # Run automatically every 10 minutes
     - cron: '*/10 * * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   monitor:
-    name: Run Synthetic Login Monitor
+    name: Run Login OTP Monitoring Flow
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Set up Python 3.11
@@ -21,38 +24,47 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install Python Dependencies
+      - name: Restore Alert State Cache
+        uses: actions/cache@v4
+        with:
+          path: .state/
+          key: monitor-state-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            monitor-state-${{ runner.os }}-
+
+      - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install Playwright Browsers & System Dependencies
-        run: |
-          playwright install --with-deps chromium
-
-      - name: Run Playwright Synthetic Test
+      - name: Run Pytest Monitoring Test
         env:
           MAYSON_BASE_URL: ${{ secrets.MAYSON_BASE_URL }}
-          MAYSON_USERNAME: ${{ secrets.MAYSON_USERNAME }}
-          MAYSON_PASSWORD: ${{ secrets.MAYSON_PASSWORD }}
-          MAIL_HOST: ${{ secrets.MAIL_HOST || 'imap.gmail.com' }}
-          MAIL_PORT: ${{ secrets.MAIL_PORT || '993' }}
+          MAYSON_EMAIL: ${{ secrets.MAYSON_EMAIL }}
+          MAYSON_CURRENT_IP: ${{ secrets.MAYSON_CURRENT_IP }}
+          MAIL_HOST: ${{ secrets.MAIL_HOST }}
+          MAIL_PORT: ${{ secrets.MAIL_PORT }}
           MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-          MAIL_USE_SSL: ${{ secrets.MAIL_USE_SSL || 'true' }}
+          MAIL_USE_SSL: ${{ secrets.MAIL_USE_SSL }}
           OTP_EMAIL_SENDER: ${{ secrets.OTP_EMAIL_SENDER }}
           OTP_EMAIL_SUBJECT: ${{ secrets.OTP_EMAIL_SUBJECT }}
+          OTP_TIMEOUT_SECONDS: ${{ secrets.OTP_TIMEOUT_SECONDS }}
+          OTP_POLL_INTERVAL_SECONDS: ${{ secrets.OTP_POLL_INTERVAL_SECONDS }}
+          ALERT_SMTP_HOST: ${{ secrets.ALERT_SMTP_HOST }}
+          ALERT_SMTP_PORT: ${{ secrets.ALERT_SMTP_PORT }}
+          ALERT_SMTP_USERNAME: ${{ secrets.ALERT_SMTP_USERNAME }}
+          ALERT_SMTP_PASSWORD: ${{ secrets.ALERT_SMTP_PASSWORD }}
+          ALERT_EMAIL_FROM: ${{ secrets.ALERT_EMAIL_FROM }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          ALERT_SMTP_USE_SSL: ${{ secrets.ALERT_SMTP_USE_SSL }}
         run: |
-          pytest --html=report.html --self-contained-html
+          pytest --tb=short
 
-
-      - name: Upload Failure Artifacts (Screenshots & Traces)
-        if: failure()
+      - name: Upload Logs Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: failure-artifacts
-          path: |
-            screenshots/
-            traces/
-            report.html
+          name: monitoring-logs-${{ github.run_number }}
+          path: logs/
           retention-days: 14

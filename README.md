@@ -1,46 +1,42 @@
-# Mayson AI - Login + Email OTP Synthetic Monitoring Automation Framework
+# Mayson API Login Monitoring with Email Alerts
 
-A production-ready, lightweight synthetic monitoring framework built with **Python**, **Playwright**, **Pytest**, and **GitHub Actions**.
+A simple, resilient **API-only synthetic monitoring framework** for the Mayson AI platform.
 
-This framework continuously validates the complete Mayson AI authentication pipeline by executing real end-to-end user logins with automated IMAP Email OTP retrieval every 10 minutes.
-
----
-
-## 🎯 Objective
-
-This monitoring system answers one simple production question:
-
-> **"Can a real Mayson user successfully log in with Email OTP and reach the dashboard right now?"**
-
-* **If YES** → Output `LOGIN MONITOR → PASS`
-* **If NO** → Output `LOGIN MONITOR → FAIL` + automatically capture Playwright Trace, Failure Screenshots, and trigger alert via GitHub Actions failure.
+This framework continuously validates the Mayson production login OTP authentication flow and dispatches automated **email alerts** upon failure or recovery.
 
 ---
 
-## 📐 Architecture & Login Flow
+## 🏗️ Tech Stack
+
+* **Language**: Python 3.11+
+* **Test Runner**: Pytest
+* **HTTP Client**: Requests
+* **Mailbox Protocol**: IMAP (`imaplib` / `email`) for polling and extracting OTP codes
+* **Alert Transmission**: SMTP (`smtplib`) for dispatching failure and recovery alert emails
+* **CI/CD**: GitHub Actions (Scheduled every 10 minutes + manual trigger)
+
+---
+
+## ⚡ Synthetic Monitoring Flow
 
 ```text
-Open Mayson Base URL
-        ↓
-   Login Page
-        ↓
-   Enter Email (MAYSON_USERNAME)
-        ↓
-   Request OTP
-        ↓
-   IMAP Mailbox Polling (utilizing timeouts & timestamp filtering)
-        ↓
-   Extract 4-8 Digit OTP Code
-        ↓
-   Enter OTP into Mayson Form
-        ↓
-   Submit & Verify OTP
-        ↓
-   Dashboard Navigation
-        ↓
-   Verify Dashboard Loaded
-        ↓
-   PASS / FAIL
+Start
+  ↓
+Request OTP API  ----------------->  POST /sigma/api/v2/auth/otp/email/login
+  ↓
+Validate API Response
+  ↓
+Wait for OTP Email  -------------->  IMAP Polling (Filtered by Sender & Subject)
+  ↓
+Extract OTP  --------------------->  Regex Parsing (Masked in logs)
+  ↓
+Verify OTP API   ----------------->  POST /sigma/api/v1/login/otp/verify
+  ↓
+Validate Auth Response
+  ↓
+Record Latency Metric
+  ↓
+PASS / FAIL  --------------------->  Dispatch Email Alert (If failure/recovery state transitioned)
 ```
 
 ---
@@ -49,148 +45,135 @@ Open Mayson Base URL
 
 ```text
 mayson-alert/
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py          # Pytest fixtures, tracing, and screenshot hooks
-│   └── test_login.py        # End-to-end synthetic monitoring test
-├── pages/
-│   ├── __init__.py
-│   ├── base_page.py         # Base Page Object with Playwright locators & waits
-│   ├── login_page.py        # Page Object for Mayson Email & OTP screens
-│   └── dashboard_page.py    # Page Object for Post-Login Dashboard
+│
+├── api/
+│   ├── api_client.py       # Base HTTP client (Headers, UUID generation, log masking, latency)
+│   └── auth_api.py         # Mayson API endpoint definitions (Request OTP & Verify OTP)
+│
 ├── utils/
-│   ├── __init__.py
-│   ├── config.py            # Environment configuration & credential loader
-│   └── email_otp.py         # IMAP OTP retriever with polling, regex & masking
+│   ├── config.py           # Environment variable loader & validator
+│   ├── logger.py           # Logging setup with sensitive data redaction filter
+│   ├── email_otp.py        # IMAP OTP reader and regex extraction utility
+│   └── email_alert.py      # SMTP alert manager with state tracking and anti-spam protection
+│
+├── tests/
+│   └── test_login_monitor.py # Pytest synthetic test suite with single-retry logic
+│
 ├── .github/
 │   └── workflows/
-│       └── login-monitor.yml# GitHub Actions workflow (every 10 min & manual)
-├── .env.example             # Environment configuration template
-├── .gitignore               # Ignored files (secrets, cache, traces, reports)
-├── pytest.ini               # Pytest execution configuration
-├── requirements.txt         # Python dependencies
-└── README.md                # Framework documentation & guide
+│       └── login-monitor.yml # GitHub Actions workflow (Runs every 10 minutes)
+│
+├── requirements.txt        # Python package dependencies
+├── pytest.ini             # Pytest configuration
+├── .env.example            # Environment variables template
+├── .gitignore             # Git ignore specification
+└── README.md               # Framework documentation
 ```
 
 ---
 
-## 🔐 Environment Variables & GitHub Secrets
+## 🔑 Required Environment Variables & Secrets
 
-Configure these parameters in your local `.env` file or in **GitHub Secrets** (`Settings -> Secrets and variables -> Actions`):
+The framework requires the following variables defined in `.env` locally or in **GitHub Repository Secrets** for CI/CD:
 
 | Variable Name | Description | Example / Default |
-| :--- | :--- | :--- |
-| `MAYSON_BASE_URL` | Mayson application target URL | `https://mayson.dev` |
-| `MAYSON_USERNAME` | Test user login email | `shivam.srivastava@novostack.com` |
-| `MAYSON_PASSWORD` | Optional password credential | `Optional` |
-| `MAIL_HOST` | IMAP mail server hostname | `imap.gmail.com` |
-| `MAIL_PORT` | IMAP mail server port | `993` |
-| `MAIL_USERNAME` | Monitoring mailbox login email | `monitor-user@example.com` |
-| `MAIL_PASSWORD` | Monitoring mailbox password / App password | `xxxx-xxxx-xxxx-xxxx` |
+|---|---|---|
+| `MAYSON_BASE_URL` | Base URL of Mayson API | `https://cc1fbde45ead-in-south-01.mayson.dev` |
+| `MAYSON_EMAIL` | Target monitoring email address | `monitoring@example.com` |
+| `MAYSON_CURRENT_IP` | Origin IP header value | `127.0.0.1` |
+| `MAIL_HOST` | IMAP server hostname | `imap.example.com` |
+| `MAIL_PORT` | IMAP server port | `993` |
+| `MAIL_USERNAME` | IMAP login email | `monitoring@example.com` |
+| `MAIL_PASSWORD` | IMAP login password | `app_password_here` |
 | `MAIL_USE_SSL` | Enable SSL for IMAP connection | `true` |
-| `OTP_EMAIL_SENDER` | Sender email filter for OTP email | `no-reply@mayson.dev` |
-| `OTP_EMAIL_SUBJECT`| Subject filter for OTP email | `Your Mayson Verification Code` |
-
-> **Security Note:** Credentials and OTP codes are strictly masked in logs and output streams (`***masked***`). Never commit plain-text credentials or `.env` files to git repositories.
+| `OTP_EMAIL_SENDER` | Filter OTP emails by sender | `noreply@mayson.dev` |
+| `OTP_EMAIL_SUBJECT` | Filter OTP emails by subject | `Mayson OTP Login` |
+| `OTP_TIMEOUT_SECONDS` | Max timeout to wait for OTP email | `60` |
+| `OTP_POLL_INTERVAL_SECONDS` | Interval between IMAP polls | `3` |
+| `ALERT_SMTP_HOST` | SMTP server for sending alerts | `smtp.example.com` |
+| `ALERT_SMTP_PORT` | SMTP server port | `587` |
+| `ALERT_SMTP_USERNAME` | SMTP login username | `alerts@example.com` |
+| `ALERT_SMTP_PASSWORD` | SMTP login password | `smtp_password_here` |
+| `ALERT_EMAIL_FROM` | Sender address for alert emails | `alerts@example.com` |
+| `ALERT_EMAIL_TO` | Recipient address for alert emails | `oncall@example.com` |
+| `ALERT_SMTP_USE_SSL` | Enable SSL for SMTP connection | `false` |
 
 ---
 
-## 🚀 Local Setup & Execution Guide
-
-### Prerequisites
-* Python 3.10 or higher
-* Pip package manager
+## 🚀 Local Setup & Execution
 
 ### 1. Clone & Setup Virtual Environment
 
 ```bash
-git clone <your-repository-url>
+git clone <repository_url>
 cd mayson-alert
 
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# On Windows:
-venv\Scripts\activate
+python -m venv .venv
+# On Windows PowerShell:
+.venv\Scripts\Activate.ps1
 # On Linux/macOS:
-source venv/bin/activate
+source .venv/bin/activate
 ```
 
-### 2. Install Dependencies & Playwright Browsers
+### 2. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
-playwright install --with-deps chromium
 ```
 
-### 3. Create Local `.env` Configuration File
+### 3. Configure Environment
 
-Copy `.env.example` to `.env` and fill in your monitoring mailbox and Mayson test account credentials:
+Copy `.env.example` to `.env` and fill in your target credentials:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
-```env
-MAYSON_BASE_URL=https://mayson.dev
-MAYSON_USERNAME=shivam.srivastava@novostack.com
+### 4. Execute Monitoring Test Suite
 
-MAIL_HOST=imap.gmail.com
-MAIL_PORT=993
-MAIL_USERNAME=shivam.srivastava@novostack.com
-MAIL_PASSWORD=your_app_password
-MAIL_USE_SSL=true
-```
-
-### 4. Run the Synthetic Monitoring Test
-
-Execute pytest locally:
+Run the synthetic monitor locally using pytest:
 
 ```bash
 pytest
 ```
 
-To run in headed browser mode (visible browser window):
+To view verbose log outputs during test execution:
 
 ```bash
-pytest --headed
-```
-
-To view stdout logging in real-time:
-
-```bash
-pytest -s
+pytest -v -s
 ```
 
 ---
 
-## 🔍 Failure Artifacts & Debugging
+## 🚨 Email Alerting & Failure Protection
 
-When a test failure occurs (e.g., OTP delivery timeout or dashboard render failure):
+### 1. Retry Protection
+If the initial monitoring run fails, the framework automatically waits 5 seconds and **retries the entire flow ONCE**. A failure alert is only triggered if the retry attempt also fails.
 
-1. **Failure Screenshots**: Automatically saved to `screenshots/failure_<test_name>_<timestamp>.png`.
-2. **Playwright Traces**: Detailed interaction trace zips saved to `traces/trace_<test_name>_<timestamp>.zip`.
-3. **HTML Test Report**: Accessible at `report.html`.
+### 2. Failure Email Notification
+Dispatched when a confirmed monitoring outage occurs.
 
-### How to View Playwright Traces
+* **Subject**: `🚨 Mayson Production Login Monitor FAILED`
+* **Content**: Includes step-by-step PASS/FAIL statuses, execution duration, and timestamp.
+* **Security Guarantee**: OTP codes, passwords, authorization headers, and tokens are **never included** in alert payloads.
 
-You can inspect full DOM snapshots, network calls, and action timelines by viewing the trace zip file:
+### 3. Recovery Email Notification
+Dispatched automatically when the system recovers from a previously recorded outage.
 
-```bash
-npx playwright show-trace traces/trace_test_mayson_login_otp_flow_<timestamp>.zip
-```
+* **Subject**: `✅ Mayson Production Login Monitor RECOVERED`
+
+### 4. Anti-Spam Protection
+The framework maintains an alert state file (`.state/monitor_status.json`). Repeated scheduled runs during an ongoing outage will **not** spam your inbox with duplicate failure emails.
 
 ---
 
 ## ⚙️ GitHub Actions CI/CD Integration
 
-The GitHub Actions workflow `.github/workflows/login-monitor.yml` runs automatically:
-* **Cron Schedule**: Executes every 10 minutes (`*/10 * * * *`).
-* **Manual Execution**: Can be triggered manually via `Workflow Dispatch` in the GitHub Actions UI.
+The workflow in `.github/workflows/login-monitor.yml` automatically:
+1. Triggers every 10 minutes (`*/10 * * * *`).
+2. Supports manual triggering via `workflow_dispatch`.
+3. Restores monitoring state across runs using `actions/cache`.
+4. Uploads test execution logs (`logs/monitor.log`) as workflow artifacts for post-mortem analysis.
 
-### Failure Artifact Downloads in GitHub Actions
-If a monitoring run fails:
-1. GitHub Actions flags the run as **FAILED**.
-2. Download the attached `failure-artifacts` zip from the workflow run summary to inspect screenshots, traces, and HTML reports.
+### Setting Up GitHub Secrets
+Go to your GitHub Repository -> **Settings** -> **Secrets and variables** -> **Actions** -> **New repository secret** and add all variables listed in the configuration table above.
