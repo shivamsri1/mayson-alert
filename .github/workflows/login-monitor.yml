@@ -2,8 +2,8 @@ name: Mayson API Login Monitor
 
 on:
   schedule:
-    # Run automatically every 10 minutes
-    - cron: '*/10 * * * *'
+    # Run automatically every 5 minutes
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:

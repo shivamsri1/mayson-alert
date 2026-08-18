@@ -13,7 +13,7 @@ This framework continuously validates the Mayson production login OTP authentica
 * **HTTP Client**: Requests
 * **Mailbox Protocol**: IMAP (`imaplib` / `email`) for polling and extracting OTP codes
 * **Alert Transmission**: SMTP (`smtplib`) for dispatching failure and recovery alert emails
-* **CI/CD**: GitHub Actions (Scheduled every 10 minutes + manual trigger)
+* **CI/CD**: GitHub Actions (Scheduled every 5 minutes + manual trigger)
 
 ---
 
